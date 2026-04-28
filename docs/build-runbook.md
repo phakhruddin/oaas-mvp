@@ -228,3 +228,37 @@ Improve scalability by processing tenants concurrently.
 
 ```bash
 TENANT_WORKER_THREADS=4
+
+## Step 24 — Rate Limiting + Circuit Breaker
+
+Commit:
+
+feat(rate-limit): add tenant rate limiter  
+feat(resilience): add circuit breaker  
+
+Files:
+
+- app/core/rate_limiter.py  
+- app/core/circuit_breaker.py  
+
+Purpose:
+
+Protect system from misbehaving tenants and external failures.
+
+### Rate Limiting
+
+- limits tenant execution frequency
+- prevents overload
+
+### Circuit Breaker
+
+- stops repeated failures
+- auto-recovers after cooldown
+
+### Why this matters
+
+Before:
+bad tenant → system instability
+
+After:
+bad tenant → isolated + controlled
