@@ -11,7 +11,7 @@ def main():
     print("[SQSWorker] Starting worker loop...")
 
     while True:
-        messages = sqs.receive_messages()
+        messages = sqs.receive_messages(visibility_timeout=60)
 
         if not messages:
             continue
@@ -34,6 +34,8 @@ def main():
 
             except Exception as exc:
                 print(f"[SQSWorker] Job failed: {exc}")
+                sqs.send_to_dlq(msg["body"], str(exc))
+                sqs.delete_message(msg["receipt"])
 
 
 if __name__ == "__main__":
