@@ -2,17 +2,15 @@
 
 This runbook tracks the step-by-step build history of the OAAS MVP.
 
-Use this file as the companion operational record for every major implementation step in the repo.
-
 ## Current Status
-
-The project is currently at:
 
 ```text
 FastAPI API
-  -> SQS queue (job dispatch)
-  -> multi-tenant worker (parallel)
-  -> CloudWatch log sources
+  -> SQS queue
+  -> SQS worker
+  -> DLQ handling
+  -> multi-tenant worker
+  -> CloudWatch
   -> analyzer
   -> optional LLM summarizer
   -> Slack delivery
@@ -21,7 +19,7 @@ FastAPI API
 Current best next step:
 
 ```text
-next: DLQ + failure handling
+next: metrics + observability for queue system
 ```
 
 ---
@@ -48,70 +46,21 @@ workers/sqs_worker.py
 
 Purpose:
 
-Decouple API from worker execution using asynchronous job queue.
+Decouple API requests from tenant processing by placing analysis work onto a queue.
 
----
-
-### Architecture
+Architecture:
 
 ```text
-FastAPI
-   -> enqueue job (SQS)
-SQS Queue
-   -> message buffer
-Worker (sqs_worker.py)
-   -> consume job
-   -> process tenant
-   -> send results to Slack
+FastAPI -> SQS -> sqs_worker.py -> process_tenant -> Slack
 ```
 
----
-
-### Behavior
-
-#### Before
-
-```text
-API request blocks until tenant processing completes
-```
-
-#### After
-
-```text
-API returns immediately (job queued)
-Worker processes job asynchronously
-```
-
----
-
-### Local Development Mode
-
-If `SQS_QUEUE_URL` is not set:
-
-```text
-- messages are printed instead of sent
-- system still works without AWS
-```
-
----
-
-### Worker Execution
-
-Run worker locally:
+Run worker:
 
 ```bash
 python workers/sqs_worker.py
 ```
 
----
-
-### API Behavior
-
-```http
-POST /tenants/{tenant_id}/analyze
-```
-
-Response:
+API response after enqueue:
 
 ```json
 {
@@ -123,22 +72,62 @@ Response:
 
 ---
 
-### Why this matters
+## Step 28 — DLQ + Failure Handling
+
+Commit:
 
 ```text
-Transforms system from synchronous service
-into distributed, scalable architecture
+feat(queue): add DLQ support to SQS client
+feat(queue): add DLQ handling in worker
+```
+
+Files changed:
+
+```text
+integrations/aws/sqs_client.py
+workers/sqs_worker.py
+```
+
+Purpose:
+
+Handle failed queue jobs safely without leaving poisoned messages in the main queue.
+
+Success path:
+
+```text
+receive message -> process tenant -> delete from main queue
+```
+
+Failure path:
+
+```text
+receive message -> processing fails -> send to DLQ -> delete from main queue
+```
+
+Environment variables:
+
+```text
+SQS_QUEUE_URL
+SQS_DLQ_URL
+```
+
+Why this matters:
+
+```text
+prevents infinite retry loops
+keeps the main queue healthy
+preserves failed job context for investigation
 ```
 
 ---
 
 ## Known Follow-Ups
 
-1. Add Dead Letter Queue (DLQ) for failed jobs
-2. Add visibility timeout + retry strategy
-3. Wire rate limiter + circuit breaker into sqs_worker
-4. Add metrics (job success / failure / latency)
-5. Add structured logging
+1. Add metrics for job success, failure, and latency
+2. Add structured logging
+3. Wire rate limiter and circuit breaker into sqs_worker
+4. Add DLQ replay tooling
+5. Add tests for queue failure paths
 
 ---
 
@@ -147,5 +136,5 @@ into distributed, scalable architecture
 For every future implementation step:
 
 1. Make the code change
-2. Update runbook
+2. Update this runbook
 3. Use semantic commits
