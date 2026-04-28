@@ -177,3 +177,29 @@ single-user tool
 
 After:
 multi-tenant SaaS platform
+
+## Step 22 — Multi-Tenant Execution
+
+Commit:
+
+feat(worker): add multi-tenant processing worker
+
+Files:
+
+- app/core/tenant_loader.py
+- workers/multi_tenant_worker.py
+
+Purpose:
+
+Execute observability pipeline per tenant.
+
+### Flow
+
+- load tenants
+- iterate sources
+- analyze logs
+- send per-tenant output
+
+### Result
+
+System supports multiple customers.
