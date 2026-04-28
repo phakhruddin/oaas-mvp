@@ -1,10 +1,13 @@
 import time
 
-from integrations.aws.sqs_client import SQSClient
-from integrations.aws.cloudwatch_metrics import CloudWatchMetricsClient
-from app.models.job import AnalysisJob
+from app.core.logger import get_logger
 from app.core.tenant_loader import TenantLoader
+from app.models.job import AnalysisJob
+from integrations.aws.cloudwatch_metrics import CloudWatchMetricsClient
+from integrations.aws.sqs_client import SQSClient
 from workers.multi_tenant_worker import process_tenant
+
+logger = get_logger("sqs_worker")
 
 
 def main():
@@ -12,7 +15,7 @@ def main():
     metrics = CloudWatchMetricsClient()
     loader = TenantLoader()
 
-    print("[SQSWorker] Starting worker loop...")
+    logger.info("starting worker loop")
 
     while True:
         messages = sqs.receive_messages(visibility_timeout=60)
@@ -24,17 +27,23 @@ def main():
 
         for msg in messages:
             start_time = time.time()
+            job = None
+            trace_id = "unknown"
+            tenant_id = "unknown"
 
             try:
                 job = AnalysisJob.from_dict(msg["body"])
+                trace_id = (job.metadata or {}).get("trace_id", "unknown")
+                tenant_id = job.tenant_id
 
-                tenant = next(
-                    t for t in tenants if t.tenant_id == job.tenant_id
+                tenant = next(t for t in tenants if t.tenant_id == job.tenant_id)
+
+                logger.info(
+                    "processing job",
+                    extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id, "job_type": job.job_type},
                 )
 
-                print(f"[SQSWorker] Processing job for tenant={tenant.tenant_id}")
-
-                process_tenant(tenant)
+                process_tenant(tenant, trace_id=trace_id)
 
                 duration = time.time() - start_time
 
@@ -53,24 +62,30 @@ def main():
 
                 sqs.delete_message(msg["receipt"])
 
-                print(f"[SQSWorker] Completed job for tenant={tenant.tenant_id} in {duration:.2f}s")
+                logger.info(
+                    f"completed job in {duration:.2f}s",
+                    extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id, "job_type": job.job_type},
+                )
 
             except Exception as exc:
                 duration = time.time() - start_time
 
-                print(f"[SQSWorker] Job failed: {exc}")
+                logger.error(
+                    f"job failed: {exc}",
+                    extra={"trace_id": trace_id, "tenant_id": tenant_id},
+                )
 
                 metrics.put_metric(
                     name="JobFailure",
                     value=1,
-                    dimensions={"tenant_id": job.tenant_id if 'job' in locals() else "unknown"},
+                    dimensions={"tenant_id": tenant_id},
                 )
 
                 metrics.put_metric(
                     name="JobLatency",
                     value=duration,
                     unit="Seconds",
-                    dimensions={"tenant_id": job.tenant_id if 'job' in locals() else "unknown"},
+                    dimensions={"tenant_id": tenant_id},
                 )
 
                 sqs.send_to_dlq(msg["body"], str(exc))
