@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
+from app.core.logger import get_logger
+from app.core.trace import generate_trace_id
 from app.core.tenant_loader import TenantLoader
 from app.models.job import AnalysisJob
 from integrations.aws.sqs_client import SQSClient
@@ -9,6 +11,8 @@ app = FastAPI(
     description="AI-powered Observability-as-a-Service MVP API",
     version="0.1.0",
 )
+
+logger = get_logger("api")
 
 
 @app.get("/health")
@@ -42,12 +46,24 @@ def analyze_tenant(tenant_id: str):
     if tenant is None:
         raise HTTPException(status_code=404, detail=f"Tenant not found: {tenant_id}")
 
-    job = AnalysisJob(job_type="analyze", tenant_id=tenant.tenant_id)
+    trace_id = generate_trace_id()
+
+    logger.info(
+        "enqueue tenant job",
+        extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id},
+    )
+
+    job = AnalysisJob(
+        job_type="analyze",
+        tenant_id=tenant.tenant_id,
+        metadata={"trace_id": trace_id},
+    )
+
     sqs = SQSClient()
     sqs.send_message(job.to_dict())
 
     return {
         "tenant_id": tenant.tenant_id,
-        "job_type": job.job_type,
         "status": "queued",
+        "trace_id": trace_id,
     }
