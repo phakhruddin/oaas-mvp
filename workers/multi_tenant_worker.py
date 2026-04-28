@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from app.core.logger import get_logger
 from app.core.tenant_loader import TenantLoader
 from app.services.analyzer import LogAnalyzer
 from app.services.summarizer import Summarizer
@@ -8,17 +9,24 @@ from app.services.llm_summarizer import LLMSummarizer
 from integrations.aws.cloudwatch import CloudWatchLogReader
 from integrations.slack.slack_client import SlackClient
 
+logger = get_logger("tenant_worker")
 
-def process_tenant(tenant):
-    print(f"\n[MultiTenant] Processing tenant: {tenant.display_name}")
+
+def process_tenant(tenant, trace_id=None):
+    logger.info(
+        "processing tenant",
+        extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id},
+    )
 
     all_events = []
 
     for source in tenant.log_sources:
-        print(f"[MultiTenant] Reading source: {source.name} ({source.log_group})")
+        logger.info(
+            "reading source",
+            extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id, "source_name": source.name},
+        )
 
         if source.provider != "cloudwatch":
-            print(f"[MultiTenant] Skipping unsupported provider: {source.provider}")
             continue
 
         reader = CloudWatchLogReader(region_name=source.region)
@@ -34,7 +42,10 @@ def process_tenant(tenant):
         all_events.extend(events)
 
     if not all_events:
-        print(f"[MultiTenant] No events for tenant: {tenant.display_name}")
+        logger.info(
+            "no events",
+            extra={"trace_id": trace_id, "tenant_id": tenant.tenant_id},
+        )
         return tenant.tenant_id, 0
 
     analyzer = LogAnalyzer()
@@ -46,6 +57,9 @@ def process_tenant(tenant):
         summarizer = Summarizer()
 
     summary = summarizer.summarize(result)
+
+    if trace_id:
+        summary = f"[trace_id={trace_id}]\n\n{summary}"
 
     slack = SlackClient(webhook_url=tenant.slack_webhook_url)
     slack.send(summary)
@@ -60,8 +74,8 @@ def main():
     loader = TenantLoader(config_path=config_path)
     tenants = loader.load()
 
-    print(f"[MultiTenant] Loaded {len(tenants)} tenants")
-    print(f"[MultiTenant] Using {max_workers} worker threads")
+    logger.info(f"loaded {len(tenants)} tenants")
+    logger.info(f"using {max_workers} worker threads")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_tenant, tenant): tenant for tenant in tenants}
@@ -70,9 +84,15 @@ def main():
             tenant = futures[future]
             try:
                 tenant_id, event_count = future.result()
-                print(f"[MultiTenant] Completed tenant={tenant_id}, events={event_count}")
+                logger.info(
+                    "tenant completed",
+                    extra={"tenant_id": tenant_id, "trace_id": None},
+                )
             except Exception as exc:
-                print(f"[MultiTenant] Tenant failed: {tenant.display_name} ({tenant.tenant_id}) - {exc}")
+                logger.error(
+                    f"tenant failed: {exc}",
+                    extra={"tenant_id": tenant.tenant_id},
+                )
 
 
 if __name__ == "__main__":
