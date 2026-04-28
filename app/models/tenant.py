@@ -18,6 +18,7 @@ class TenantLogSource:
 class TenantConfig:
     tenant_id: str
     display_name: str
+    api_key: Optional[str] = None
     slack_webhook_url: Optional[str] = None
     use_llm: bool = False
     metadata: Dict[str, str] = field(default_factory=dict)
