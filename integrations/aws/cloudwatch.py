@@ -33,41 +33,66 @@ class CloudWatchLogReader:
         filter_pattern: str = "",
         limit: int = 100,
         service_name: Optional[str] = None,
+        page_size: int = 100,
     ) -> List[LogEvent]:
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(minutes=minutes)
 
-        response = self.client.filter_log_events(
-            logGroupName=log_group_name,
-            startTime=int(start_time.timestamp() * 1000),
-            endTime=int(end_time.timestamp() * 1000),
-            filterPattern=filter_pattern,
-            limit=limit,
-        )
-
         events: List[LogEvent] = []
+        next_token: Optional[str] = None
 
-        for item in response.get("events", []):
-            message = item.get("message", "").strip()
-            timestamp_ms = item.get("timestamp")
-            timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+        while len(events) < limit:
+            remaining = limit - len(events)
+            request_limit = min(page_size, remaining)
 
-            events.append(
-                LogEvent(
-                    timestamp=timestamp,
-                    service=service_name or self._infer_service(log_group_name),
-                    level=self._infer_level(message),
-                    message=message,
-                    source="cloudwatch",
-                    metadata={
-                        "log_group": log_group_name,
-                        "log_stream": item.get("logStreamName"),
-                        "event_id": item.get("eventId"),
-                    },
-                )
-            )
+            request = {
+                "logGroupName": log_group_name,
+                "startTime": int(start_time.timestamp() * 1000),
+                "endTime": int(end_time.timestamp() * 1000),
+                "filterPattern": filter_pattern,
+                "limit": request_limit,
+            }
+
+            if next_token:
+                request["nextToken"] = next_token
+
+            response = self.client.filter_log_events(**request)
+
+            for item in response.get("events", []):
+                events.append(self._to_log_event(item, log_group_name, service_name))
+
+                if len(events) >= limit:
+                    break
+
+            next_token = response.get("nextToken")
+
+            if not next_token:
+                break
 
         return events
+
+    def _to_log_event(
+        self,
+        item: dict,
+        log_group_name: str,
+        service_name: Optional[str] = None,
+    ) -> LogEvent:
+        message = item.get("message", "").strip()
+        timestamp_ms = item.get("timestamp")
+        timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+
+        return LogEvent(
+            timestamp=timestamp,
+            service=service_name or self._infer_service(log_group_name),
+            level=self._infer_level(message),
+            message=message,
+            source="cloudwatch",
+            metadata={
+                "log_group": log_group_name,
+                "log_stream": item.get("logStreamName"),
+                "event_id": item.get("eventId"),
+            },
+        )
 
     def _infer_service(self, log_group_name: str) -> str:
         return log_group_name.strip("/").split("/")[-1] or "unknown-service"
