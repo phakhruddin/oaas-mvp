@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.core.tenant_loader import TenantLoader
 from app.services.analyzer import LogAnalyzer
@@ -34,7 +35,7 @@ def process_tenant(tenant):
 
     if not all_events:
         print(f"[MultiTenant] No events for tenant: {tenant.display_name}")
-        return
+        return tenant.tenant_id, 0
 
     analyzer = LogAnalyzer()
     result = analyzer.analyze(all_events)
@@ -49,17 +50,29 @@ def process_tenant(tenant):
     slack = SlackClient(webhook_url=tenant.slack_webhook_url)
     slack.send(summary)
 
+    return tenant.tenant_id, len(all_events)
+
 
 def main():
     config_path = os.getenv("TENANT_CONFIG_PATH", "config/tenants.json")
+    max_workers = int(os.getenv("TENANT_WORKER_THREADS", "4"))
 
     loader = TenantLoader(config_path=config_path)
     tenants = loader.load()
 
     print(f"[MultiTenant] Loaded {len(tenants)} tenants")
+    print(f"[MultiTenant] Using {max_workers} worker threads")
 
-    for tenant in tenants:
-        process_tenant(tenant)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_tenant, tenant): tenant for tenant in tenants}
+
+        for future in as_completed(futures):
+            tenant = futures[future]
+            try:
+                tenant_id, event_count = future.result()
+                print(f"[MultiTenant] Completed tenant={tenant_id}, events={event_count}")
+            except Exception as exc:
+                print(f"[MultiTenant] Tenant failed: {tenant.display_name} ({tenant.tenant_id}) - {exc}")
 
 
 if __name__ == "__main__":
