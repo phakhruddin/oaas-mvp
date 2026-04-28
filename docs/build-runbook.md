@@ -118,3 +118,31 @@ next: add CLI interface (oaas analyze)
 Reason:
 
 The system is now functional but developer-driven. A CLI makes it usable as a real tool.
+
+## Step 20 — Config Management + Multi-Env
+
+Commit:
+
+feat(config): add multi-environment config loader
+
+Files:
+
+- app/core/config.py
+- config/dev.env
+- config/prod.env
+- config/local.env
+
+Purpose:
+
+Centralize configuration and support multiple environments.
+
+### Environments
+
+- dev
+- prod
+- local override
+
+### Usage
+
+```python
+config = load_config()
