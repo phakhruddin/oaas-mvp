@@ -1,0 +1,38 @@
+name: Daily Observability Digest
+
+on:
+  schedule:
+    # Runs daily at 14:00 UTC.
+    # Adjust this cron expression to match the preferred delivery time.
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 openai
+
+      - name: Run daily digest worker
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          CLOUDWATCH_LOG_GROUP: ${{ secrets.CLOUDWATCH_LOG_GROUP }}
+          CLOUDWATCH_LIMIT: ${{ vars.CLOUDWATCH_LIMIT || '500' }}
+          DIGEST_LOOKBACK_MINUTES: ${{ vars.DIGEST_LOOKBACK_MINUTES || '1440' }}
+        run: |
+          python workers/digest_worker.py
