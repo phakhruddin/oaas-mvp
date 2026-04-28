@@ -3,8 +3,11 @@ from fastapi import FastAPI, HTTPException, Depends
 from app.core.logger import get_logger
 from app.core.trace import generate_trace_id
 from app.core.auth import authenticate
+from app.core.otel import start_span, setup_otel
 from app.models.job import AnalysisJob
 from integrations.aws.sqs_client import SQSClient
+
+setup_otel("oaas-api")
 
 app = FastAPI(
     title="OAAS MVP API",
@@ -22,12 +25,13 @@ def health_check():
 
 @app.get("/tenants")
 def list_tenants(current_tenant=Depends(authenticate)):
-    return {
-        "tenant_id": current_tenant.tenant_id,
-        "display_name": current_tenant.display_name,
-        "use_llm": current_tenant.use_llm,
-        "log_source_count": len(current_tenant.log_sources),
-    }
+    with start_span("list_tenants", tenant_id=current_tenant.tenant_id):
+        return {
+            "tenant_id": current_tenant.tenant_id,
+            "display_name": current_tenant.display_name,
+            "use_llm": current_tenant.use_llm,
+            "log_source_count": len(current_tenant.log_sources),
+        }
 
 
 @app.post("/tenants/{tenant_id}/analyze")
@@ -37,22 +41,23 @@ def analyze_tenant(tenant_id: str, current_tenant=Depends(authenticate)):
 
     trace_id = generate_trace_id()
 
-    logger.info(
-        "enqueue tenant job",
-        extra={"trace_id": trace_id, "tenant_id": current_tenant.tenant_id},
-    )
+    with start_span("enqueue_job", tenant_id=current_tenant.tenant_id, trace_id=trace_id):
+        logger.info(
+            "enqueue tenant job",
+            extra={"trace_id": trace_id, "tenant_id": current_tenant.tenant_id},
+        )
 
-    job = AnalysisJob(
-        job_type="analyze",
-        tenant_id=current_tenant.tenant_id,
-        metadata={"trace_id": trace_id},
-    )
+        job = AnalysisJob(
+            job_type="analyze",
+            tenant_id=current_tenant.tenant_id,
+            metadata={"trace_id": trace_id},
+        )
 
-    sqs = SQSClient()
-    sqs.send_message(job.to_dict())
+        sqs = SQSClient()
+        sqs.send_message(job.to_dict())
 
-    return {
-        "tenant_id": current_tenant.tenant_id,
-        "status": "queued",
-        "trace_id": trace_id,
-    }
+        return {
+            "tenant_id": current_tenant.tenant_id,
+            "status": "queued",
+            "trace_id": trace_id,
+        }
