@@ -12,6 +12,8 @@ FastAPI API
   -> SQS worker
   -> DLQ handling
   -> CloudWatch metrics
+  -> structured JSON logs
+  -> trace correlation
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -22,7 +24,7 @@ FastAPI API
 Current best next step:
 
 ```text
-next: structured logging + trace correlation
+next: API authentication (multi-tenant security)
 ```
 
 ---
@@ -936,18 +938,76 @@ The observability platform can now observe itself.
 
 ---
 
+## Step 30 — Structured Logging + Trace Correlation
+
+Commit:
+
+```text
+feat(logging): add structured JSON logger
+feat(trace): add trace id generator
+feat(api): add trace id and structured logging
+feat(trace): propagate trace id through SQS worker
+feat(trace): propagate trace id into tenant processing and Slack output
+```
+
+Files changed:
+
+```text
+app/core/logger.py
+app/core/trace.py
+app/api/main.py
+workers/sqs_worker.py
+workers/multi_tenant_worker.py
+```
+
+Purpose:
+
+Enable full end-to-end traceability across the distributed system.
+
+Flow:
+
+```text
+API
+  -> generate trace_id
+  -> attach trace_id to job metadata
+SQS
+  -> carries trace_id
+SQS worker
+  -> logs trace_id while processing job
+Tenant worker
+  -> logs trace_id while reading sources and processing tenant
+Slack
+  -> includes trace_id in final output
+```
+
+Example lifecycle:
+
+```text
+trace_id=abc-123
+API enqueue -> SQS -> worker -> tenant processing -> Slack
+```
+
+Why this matters:
+
+```text
+Before: no correlation across components
+After: a single trace_id links the full request lifecycle
+```
+
+---
+
 ## Known Follow-Ups
 
-1. Add structured logging and trace correlation.
-2. Wire rate limiter and circuit breaker into `workers/sqs_worker.py`.
-3. Add DLQ replay tooling.
-4. Add tests for queue failure paths.
-5. Add CloudWatch dashboard definitions for queue metrics.
-6. Add `send_text()` to `integrations/slack/slack_client.py` if not already present.
-7. Verify `app/core/config.py` exists and is populated.
-8. Add `config/tenants.example.json` so tenant setup is documented safely without secrets.
-9. Update `.github/workflows/daily-digest.yml` to pass `SLACK_WEBHOOK_URL` if not already present.
-10. Add `requirements.txt` with required packages.
+1. Wire rate limiter and circuit breaker into `workers/sqs_worker.py`.
+2. Add DLQ replay tooling.
+3. Add tests for queue failure paths.
+4. Add CloudWatch dashboard definitions for queue metrics.
+5. Add `send_text()` to `integrations/slack/slack_client.py` if not already present.
+6. Verify `app/core/config.py` exists and is populated.
+7. Add `config/tenants.example.json` so tenant setup is documented safely without secrets.
+8. Update `.github/workflows/daily-digest.yml` to pass `SLACK_WEBHOOK_URL` if not already present.
+9. Add `requirements.txt` with required packages.
+10. Add API authentication / tenant API keys.
 
 ---
 
