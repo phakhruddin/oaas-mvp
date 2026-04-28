@@ -1,0 +1,64 @@
+name: Deploy OAAS to ECS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "workers/**"
+      - "integrations/**"
+      - "Dockerfile"
+      - ".github/workflows/deploy-ecs.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  API_ECR_REPOSITORY: ${{ vars.API_ECR_REPOSITORY }}
+  WORKER_ECR_REPOSITORY: ${{ vars.WORKER_ECR_REPOSITORY }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  API_ECS_SERVICE: ${{ vars.API_ECS_SERVICE }}
+  WORKER_ECS_SERVICE: ${{ vars.WORKER_ECS_SERVICE }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$API_ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$API_ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Build and push worker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$WORKER_ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$WORKER_ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Force ECS service deployment
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$API_ECS_SERVICE" --force-new-deployment
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$WORKER_ECS_SERVICE" --force-new-deployment
