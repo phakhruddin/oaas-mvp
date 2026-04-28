@@ -1,7 +1,8 @@
 import os
 
-from integrations.aws.cloudwatch import CloudWatchLogReader
 from app.services.digest import DailyDigestService
+from integrations.aws.cloudwatch import CloudWatchLogReader
+from integrations.slack.slack_client import SlackClient
 
 
 def load_cloudwatch_events():
@@ -30,11 +31,13 @@ def main():
 
     service = DailyDigestService()
     digest = service.build(events)
-
     output = service.format(digest)
 
     print("\n[DigestWorker] Daily Digest Output:\n")
     print(output)
+
+    slack = SlackClient()
+    slack.send_text(output)
 
 
 if __name__ == "__main__":
