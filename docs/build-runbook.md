@@ -262,3 +262,35 @@ bad tenant → system instability
 
 After:
 bad tenant → isolated + controlled
+
+## Step 25 — FastAPI Service Layer
+
+Commit:
+
+feat(api): add FastAPI service layer
+
+Files:
+
+- app/api/main.py
+
+Purpose:
+
+Expose observability system via HTTP API.
+
+### Endpoints
+
+- GET /health
+- GET /tenants
+- POST /tenants/{tenant_id}/analyze
+
+### Why this matters
+
+Before:
+CLI / worker-only system
+
+After:
+service-based architecture (SaaS foundation)
+
+### Next Step
+
+next: async job queue (SQS / background workers)
