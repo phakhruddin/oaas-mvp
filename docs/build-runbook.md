@@ -930,6 +930,50 @@ export API_KEYS_SECRET_NAME=oaas-mvp-api-keys
 
 ---
 
+## Step 37 — Blue/Green Deployment (ECS + CodeDeploy)
+
+Commit:
+
+infra(ecs): add CodeDeploy blue-green deployment group  
+docs: add blue/green deployment guide  
+
+Files:
+
+- infra/terraform/modules/ecs/codedeploy.tf  
+- docs/blue-green.md  
+
+Purpose:
+
+Enable zero-downtime deployments with automatic rollback.
+
+### Design
+
+- Blue = current version  
+- Green = new version  
+- Traffic shifted gradually via ALB  
+
+### Strategy
+
+- Canary: 10% traffic for 5 minutes  
+- Full cutover after validation  
+
+### Rollback
+
+- Automatic on failure  
+- Automatic on CloudWatch alarms  
+
+### Result
+
+- Zero downtime deployments  
+- Safe release process  
+- Fast rollback capability  
+
+### Next Step
+
+next: multi-region failover (Route53 + health checks)
+
+---
+
 ## Known Follow-Ups
 
 1. Wire rate limiter and circuit breaker into `workers/sqs_worker.py`.
