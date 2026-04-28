@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 
 from app.core.tenant_loader import TenantLoader
-from workers.multi_tenant_worker import process_tenant
+from app.models.job import AnalysisJob
+from integrations.aws.sqs_client import SQSClient
 
 app = FastAPI(
     title="OAAS MVP API",
@@ -41,10 +42,12 @@ def analyze_tenant(tenant_id: str):
     if tenant is None:
         raise HTTPException(status_code=404, detail=f"Tenant not found: {tenant_id}")
 
-    processed_tenant_id, event_count = process_tenant(tenant)
+    job = AnalysisJob(job_type="analyze", tenant_id=tenant.tenant_id)
+    sqs = SQSClient()
+    sqs.send_message(job.to_dict())
 
     return {
-        "tenant_id": processed_tenant_id,
-        "event_count": event_count,
-        "status": "completed",
+        "tenant_id": tenant.tenant_id,
+        "job_type": job.job_type,
+        "status": "queued",
     }
