@@ -9,8 +9,9 @@ FastAPI API
   -> SQS queue
   -> SQS worker
   -> DLQ handling
+  -> CloudWatch metrics
   -> multi-tenant worker
-  -> CloudWatch
+  -> CloudWatch logs
   -> analyzer
   -> optional LLM summarizer
   -> Slack delivery
@@ -19,7 +20,7 @@ FastAPI API
 Current best next step:
 
 ```text
-next: metrics + observability for queue system
+next: structured logging + trace correlation
 ```
 
 ---
@@ -121,13 +122,71 @@ preserves failed job context for investigation
 
 ---
 
+## Step 29 — Metrics + Observability for Queue System
+
+Commit:
+
+```text
+feat(metrics): add CloudWatch metrics client
+feat(metrics): instrument SQS worker with metrics
+```
+
+Files changed:
+
+```text
+integrations/aws/cloudwatch_metrics.py
+workers/sqs_worker.py
+```
+
+Purpose:
+
+Add observability to the queue worker so the OAAS system can monitor its own job execution health.
+
+Metrics emitted:
+
+```text
+JobSuccess
+JobFailure
+JobLatency
+```
+
+Metric dimensions:
+
+```text
+tenant_id
+```
+
+Local mode:
+
+```text
+If ENABLE_CLOUDWATCH_METRICS=false, metrics are printed locally instead of sent to CloudWatch.
+```
+
+CloudWatch mode:
+
+```bash
+export ENABLE_CLOUDWATCH_METRICS=true
+export AWS_REGION=us-east-1
+export METRICS_NAMESPACE="OAAS/MVP"
+python workers/sqs_worker.py
+```
+
+Why this matters:
+
+```text
+The observability platform can now observe itself.
+This enables success-rate tracking, failure tracking, latency visibility, and per-tenant operational insight.
+```
+
+---
+
 ## Known Follow-Ups
 
-1. Add metrics for job success, failure, and latency
-2. Add structured logging
-3. Wire rate limiter and circuit breaker into sqs_worker
-4. Add DLQ replay tooling
-5. Add tests for queue failure paths
+1. Add structured logging and trace correlation
+2. Wire rate limiter and circuit breaker into sqs_worker
+3. Add DLQ replay tooling
+4. Add tests for queue failure paths
+5. Add CloudWatch dashboard definitions for queue metrics
 
 ---
 
