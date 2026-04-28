@@ -5,6 +5,7 @@ from typing import List
 from app.models.log_event import LogEvent
 from app.services.analyzer import LogAnalyzer
 from app.services.summarizer import Summarizer
+from app.services.llm_summarizer import LLMSummarizer
 from integrations.aws.cloudwatch import CloudWatchLogReader
 from integrations.slack.slack_client import SlackClient
 
@@ -62,7 +63,16 @@ def main():
     analyzer = LogAnalyzer()
     result = analyzer.analyze(events)
 
-    summarizer = Summarizer()
+    # Choose summarizer: LLM (if configured) or deterministic fallback
+    use_llm = os.getenv("USE_LLM", "false").lower() == "true"
+
+    if use_llm:
+        print("[Worker] Using LLM summarizer")
+        summarizer = LLMSummarizer(fallback=Summarizer())
+    else:
+        print("[Worker] Using deterministic summarizer")
+        summarizer = Summarizer()
+
     summary = summarizer.summarize(result)
 
     slack = SlackClient()
