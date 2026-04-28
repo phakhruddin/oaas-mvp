@@ -146,3 +146,34 @@ Centralize configuration and support multiple environments.
 
 ```python
 config = load_config()
+
+## Step 21 — Multi-Tenant Architecture
+
+Commit:
+
+feat(tenant): add tenant configuration models
+
+Files:
+
+- app/models/tenant.py
+
+Purpose:
+
+Enable support for multiple customers (tenants) in a single system.
+
+### Key Concepts
+
+- Tenant = customer
+- TenantLogSource = one ingestion source
+- Each tenant can have:
+  - multiple log sources
+  - own Slack webhook
+  - own AI settings
+
+### Why this matters
+
+Before:
+single-user tool
+
+After:
+multi-tenant SaaS platform
