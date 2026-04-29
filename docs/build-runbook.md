@@ -23,6 +23,7 @@ FastAPI API
   -> Secrets Manager foundation
   -> blue/green deployment
   -> multi-region failover
+  -> DynamoDB Global Tables
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -33,7 +34,7 @@ FastAPI API
 Current best next step:
 
 ```text
-next: global data replication (DynamoDB Global Tables)
+next: region-aware routing + write conflict handling
 ```
 
 ---
@@ -1035,6 +1036,91 @@ next: global data replication (DynamoDB Global Tables)
 
 ---
 
+## Step 39 — Global Data Replication (DynamoDB Global Tables)
+
+Commit:
+
+infra(dynamodb): add global table module  
+docs(infra): add DynamoDB global tables guide
+
+Files:
+
+- infra/terraform/modules/dynamodb-global/main.tf
+- docs/dynamodb-global.md
+
+Purpose:
+
+Enable multi-region data consistency across failover regions using DynamoDB Global Tables.
+
+### Architecture
+
+```text
+Primary Region (us-east-1)
+    ↔ replication ↔
+Secondary Region (us-west-2)
+```
+
+### Implementation
+
+- DynamoDB Global Tables with replica regions
+- PAY_PER_REQUEST billing mode
+- Streams enabled for replication
+- Point-in-time recovery enabled
+- Server-side encryption enabled
+
+### Data Model
+
+Partition key:
+
+```text
+pk (tenant_id)
+```
+
+Sort key:
+
+```text
+sk (entity_id / job_id)
+```
+
+### Failure Behavior
+
+1. Region A fails.
+2. Route53 shifts traffic to Region B.
+3. Region B reads the same replicated data.
+4. System continues without data loss.
+
+### Consistency Model
+
+- Eventual consistency across regions
+- Last-writer-wins conflict resolution
+- Idempotent writes recommended
+
+### Why this matters
+
+Before:
+
+```text
+Multi-region compute WITHOUT shared state
+```
+
+After:
+
+```text
+Multi-region compute WITH replicated data layer
+```
+
+### Result
+
+- True active-active architecture
+- No data loss during failover
+- Low-latency regional reads
+
+### Next Step
+
+next: region-aware routing + write conflict handling
+
+---
+
 ## Known Follow-Ups
 
 1. Wire rate limiter and circuit breaker into `workers/sqs_worker.py`.
@@ -1049,6 +1135,7 @@ next: global data replication (DynamoDB Global Tables)
 10. Add CI/CD deployment validation and rollback checks.
 11. Add blue/green deployment with ECS CodeDeploy.
 12. Add DynamoDB Global Tables for replicated tenant/job state.
+13. Add region-aware routing and write conflict handling.
 
 ---
 
