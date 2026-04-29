@@ -1,8 +1,12 @@
 import json
 import logging
 import sys
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+trace_id_context: ContextVar[str] = ContextVar("trace_id", default="")
+tenant_id_context: ContextVar[str] = ContextVar("tenant_id", default="")
 
 
 class JsonFormatter(logging.Formatter):
@@ -12,7 +16,13 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "trace_id": getattr(record, "trace_id", None) or trace_id_context.get() or None,
+            "tenant_id": getattr(record, "tenant_id", None) or tenant_id_context.get() or None,
         }
+
+        for key in ["job_type", "source_name", "queue_name", "duration_ms"]:
+            if hasattr(record, key):
+                payload[key] = getattr(record, key)
 
         context = getattr(record, "context", None)
         if isinstance(context, dict):
@@ -35,6 +45,18 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
     return logger
+
+
+def set_log_context(trace_id: Optional[str] = None, tenant_id: Optional[str] = None) -> None:
+    if trace_id:
+        trace_id_context.set(trace_id)
+    if tenant_id:
+        tenant_id_context.set(tenant_id)
+
+
+def clear_log_context() -> None:
+    trace_id_context.set("")
+    tenant_id_context.set("")
 
 
 def log_event(
