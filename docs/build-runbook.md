@@ -21,6 +21,8 @@ FastAPI API
   -> ECS autoscaling
   -> CI/CD pipeline
   -> Secrets Manager foundation
+  -> blue/green deployment
+  -> multi-region failover
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -31,7 +33,7 @@ FastAPI API
 Current best next step:
 
 ```text
-next: blue/green deployment (ECS + CodeDeploy)
+next: global data replication (DynamoDB Global Tables)
 ```
 
 ---
@@ -974,6 +976,65 @@ next: multi-region failover (Route53 + health checks)
 
 ---
 
+## Step 38 — Multi-Region Failover (Route53 + Health Checks)
+
+Commit:
+
+infra(route53): add multi-region failover module  
+docs(infra): add multi-region failover guide
+
+Files:
+
+- infra/terraform/modules/route53-failover/main.tf
+- docs/multi-region-failover.md
+
+Purpose:
+
+Enable high availability by deploying the system across multiple AWS regions with automatic Route53 failover.
+
+### Architecture
+
+```text
+Client
+  -> Route53 Failover Policy
+       -> Primary Region (ECS + ALB)
+       -> Secondary Region (ECS + ALB)
+```
+
+### Implementation
+
+- Route53 health checks for primary and secondary regional endpoints
+- PRIMARY / SECONDARY failover routing policy
+- Low TTL for faster failover
+- `/health` endpoint used as regional health signal
+
+### Failover Flow
+
+1. Route53 checks the primary endpoint.
+2. If primary becomes unhealthy, Route53 marks it down.
+3. Traffic shifts to the secondary regional endpoint.
+4. When primary recovers, traffic can return based on Route53 failover behavior.
+
+### Why this matters
+
+Before:
+
+```text
+Single-region deployment risk
+```
+
+After:
+
+```text
+Multi-region API failover with automatic traffic recovery
+```
+
+### Next Step
+
+next: global data replication (DynamoDB Global Tables)
+
+---
+
 ## Known Follow-Ups
 
 1. Wire rate limiter and circuit breaker into `workers/sqs_worker.py`.
@@ -987,6 +1048,7 @@ next: multi-region failover (Route53 + health checks)
 9. Add `requirements.txt` with required packages.
 10. Add CI/CD deployment validation and rollback checks.
 11. Add blue/green deployment with ECS CodeDeploy.
+12. Add DynamoDB Global Tables for replicated tenant/job state.
 
 ---
 
