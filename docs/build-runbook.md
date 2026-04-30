@@ -26,6 +26,7 @@ FastAPI API
   -> DynamoDB Global Tables
   -> region-aware routing
   -> conflict handling
+  -> marketing capability mapping
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -41,81 +42,52 @@ next: write fencing + idempotency guarantees
 
 ---
 
-(unchanged steps 1–39)
+(unchanged steps 1–40)
 
 ---
 
-## Step 40 — Region-Aware Routing + Write Conflict Handling
+## Step 41 — Marketing Capability Document Integration
 
 Commit:
 
-feat(region): add region-aware routing and conflict resolver  
-docs(region): add region routing and conflict handling guide
+docs(marketing): add OAAS capability document
 
 Files:
 
-- app/core/region_routing.py
-- docs/region-routing.md
+- docs/marketing-capability.md
 
 Purpose:
 
-Control write routing across regions and handle conflicts in a multi-region active-active system.
+Bridge the gap between the external marketing site and the internal technical implementation.
 
-### Architecture
+### What was added
 
-```text
-Client
-  -> Route53
-       -> Region A / Region B
-            -> RegionRouter decides operation routing
-            -> DynamoDB Global Tables
-            -> ConflictResolver ensures consistency
-```
-
-### Routing Strategy
-
-- Reads → local region (low latency)
-- Writes → primary write region (reduce conflicts)
-
-### Conflict Strategy
-
-- Last-writer-wins
-- Timestamp-based resolution
-- Region tagging (updated_by_region)
-
-### Record Design
-
-```json
-{
-  "updated_at": "timestamp",
-  "updated_by_region": "region"
-}
-```
-
-### Failure Behavior
-
-- If writes occur in both regions
-- ConflictResolver selects latest version
+- Mapping between marketing claims and backend capabilities
+- Clear product positioning for OAAS
+- Target customer segmentation
+- Demo narrative aligned with real pipeline
+- Safe vs unsafe marketing claims
 
 ### Why this matters
 
 Before:
 
 ```text
-Multi-region writes = conflict risk
+Marketing and engineering disconnected
 ```
 
 After:
 
 ```text
-Controlled writes + deterministic conflict resolution
+Marketing backed by real technical capabilities
 ```
 
 ### Result
 
-- Reduced write conflicts
-- Predictable behavior
-- Foundation for advanced routing
+- Clear story for customers
+- Credible product positioning
+- Easier sales and demos
+- Alignment between frontend and backend
 
 ### Next Step
 
