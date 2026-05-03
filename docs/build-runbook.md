@@ -27,6 +27,7 @@ FastAPI API
   -> region-aware routing
   -> conflict handling
   -> marketing capability mapping
+  -> onboarding flow + API key issuance
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -42,52 +43,81 @@ next: write fencing + idempotency guarantees
 
 ---
 
-(unchanged steps 1–40)
+(unchanged steps 1–41)
 
 ---
 
-## Step 41 — Marketing Capability Document Integration
+## Step 42 — Onboarding + API Key Issuance + Demo Tenant Flow
 
 Commit:
 
-docs(marketing): add OAAS capability document
+feat(onboarding): add API key issuance helper  
+feat(onboarding): add onboarding service for demo tenant  
+feat(onboarding): add demo onboarding endpoint  
+docs(onboarding): add onboarding flow
 
 Files:
 
-- docs/marketing-capability.md
+- app/core/api_keys.py
+- app/services/onboarding.py
+- app/api/main.py
+- docs/onboarding.md
 
 Purpose:
 
-Bridge the gap between the external marketing site and the internal technical implementation.
+Enable users to quickly start using OAAS with minimal setup and achieve fast time-to-value.
 
-### What was added
+### Flow
 
-- Mapping between marketing claims and backend capabilities
-- Clear product positioning for OAAS
-- Target customer segmentation
-- Demo narrative aligned with real pipeline
-- Safe vs unsafe marketing claims
+```text
+User
+  -> POST /onboarding/demo
+  -> System creates demo tenant
+  -> API key issued
+  -> User receives next steps
+```
+
+### API Example
+
+```text
+POST /onboarding/demo
+```
+
+Response:
+
+```json
+{
+  "tenant_id": "demo-tenant",
+  "api_key": "oaas_xxx",
+  "next_steps": ["connect logs", "run analyze"]
+}
+```
+
+### Design
+
+- Secure API key generation (hashed)
+- Instant demo tenant provisioning
+- No AWS setup required for initial experience
 
 ### Why this matters
 
 Before:
 
 ```text
-Marketing and engineering disconnected
+System exists but hard to start
 ```
 
 After:
 
 ```text
-Marketing backed by real technical capabilities
+User can try product in under 5 minutes
 ```
 
 ### Result
 
-- Clear story for customers
-- Credible product positioning
-- Easier sales and demos
-- Alignment between frontend and backend
+- Faster onboarding
+- Better product adoption
+- Clear demo flow
 
 ### Next Step
 
