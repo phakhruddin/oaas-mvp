@@ -6,6 +6,7 @@ from app.core.auth import authenticate
 from app.core.otel import start_span, setup_otel
 from app.models.job import AnalysisJob
 from integrations.aws.sqs_client import SQSClient
+from app.services.onboarding import OnboardingService
 
 setup_otel("oaas-api")
 
@@ -21,6 +22,12 @@ logger = get_logger("api")
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "oaas-mvp"}
+
+
+@app.post("/onboarding/demo")
+def onboarding_demo():
+    service = OnboardingService()
+    return service.onboarding_response("demo-tenant")
 
 
 @app.get("/tenants")
