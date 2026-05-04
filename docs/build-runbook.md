@@ -28,6 +28,7 @@ FastAPI API
   -> conflict handling
   -> marketing capability mapping
   -> onboarding flow + API key issuance
+  -> write fencing + idempotency
   -> multi-tenant worker
   -> CloudWatch logs
   -> analyzer
@@ -38,91 +39,81 @@ FastAPI API
 Current best next step:
 
 ```text
-next: write fencing + idempotency guarantees
+next: persist fencing + idempotency in DynamoDB
 ```
 
 ---
 
-(unchanged steps 1–41)
+(unchanged steps 1–42)
 
 ---
 
-## Step 42 — Onboarding + API Key Issuance + Demo Tenant Flow
+## Step 43 — Write Fencing + Idempotency Guarantees
 
 Commit:
 
-feat(onboarding): add API key issuance helper  
-feat(onboarding): add onboarding service for demo tenant  
-feat(onboarding): add demo onboarding endpoint  
-docs(onboarding): add onboarding flow
+feat(write-safety): add fencing and idempotency primitives  
+docs(write-safety): add fencing and idempotency guide
 
 Files:
 
-- app/core/api_keys.py
-- app/services/onboarding.py
-- app/api/main.py
-- docs/onboarding.md
+- app/core/write_safety.py
+- docs/write-safety.md
 
 Purpose:
 
-Enable users to quickly start using OAAS with minimal setup and achieve fast time-to-value.
+Ensure safe, repeatable, and conflict-resistant writes in a distributed multi-region system.
+
+### Problem
+
+- Retries can duplicate operations
+- Cross-region writes can overwrite data
+
+### Solution
+
+- Write fencing: reject stale writes using monotonic tokens
+- Idempotency: ensure duplicate requests return same result
 
 ### Flow
 
 ```text
-User
-  -> POST /onboarding/demo
-  -> System creates demo tenant
-  -> API key issued
-  -> User receives next steps
+request
+  -> idempotency check
+  -> fence validation
+  -> execute
+  -> store result
 ```
 
-### API Example
+### Key Concepts
 
-```text
-POST /onboarding/demo
-```
-
-Response:
-
-```json
-{
-  "tenant_id": "demo-tenant",
-  "api_key": "oaas_xxx",
-  "next_steps": ["connect logs", "run analyze"]
-}
-```
-
-### Design
-
-- Secure API key generation (hashed)
-- Instant demo tenant provisioning
-- No AWS setup required for initial experience
+- Fence token per tenant + region
+- Last-writer-wins only after fencing validation
+- Idempotency key derived from request payload
 
 ### Why this matters
 
 Before:
 
 ```text
-System exists but hard to start
+Duplicate execution + unsafe writes
 ```
 
 After:
 
 ```text
-User can try product in under 5 minutes
+Safe retries + controlled writes
 ```
 
 ### Result
 
-- Faster onboarding
-- Better product adoption
-- Clear demo flow
+- No duplicate processing
+- Stronger consistency guarantees
+- Production-safe distributed system
 
 ### Next Step
 
 ```text
-next: write fencing + idempotency guarantees
+next: persist fencing + idempotency in DynamoDB
 ```
 
 ---
